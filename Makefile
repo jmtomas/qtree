@@ -1,2 +1,2 @@
 qtree: Makefile *.cpp
-	g++ -lSDL2 main.cpp -o qtree
+	g++ -ggdb -O0 -fno-builtin -lSDL2 main.cpp -o qtree

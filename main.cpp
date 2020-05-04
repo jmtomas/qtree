@@ -1,45 +1,57 @@
+#include <iostream>
+#include <cstdlib>
+#include <ctime>
 #include <SDL2/SDL.h>
 
 #define upper_bound 10
 #define lower_bound 2
+#define window_w 1280
+#define window_h 720
 
 struct Point {
-	int x;
-	int y;
+	float x;
+	float y;
+
+	Point() {}
+	Point(float x, float y) : x(x), y(y) {}
+};
+
+struct Object {
+	Point pos;
+	Point vel;
+
+	Object() {}
+	Object(Point pos, Point vel) : pos(pos), vel(vel) {}
 
 	void render(SDL_Renderer *renderer) {
 		SDL_SetRenderDrawColor(renderer, 30, 180, 80, 255);
-		SDL_Rect rect = { x - 5, y - 5, 5, 5 };
+		SDL_Rect rect = { (int) pos.x - 5, (int) pos.y - 5, 5, 5 };
 		SDL_RenderFillRect(renderer, &rect);
 	}
 };
 
 struct Partition {
-	int x;
-	int y;
-	int w;
-	int h;
+	float x;
+	float y;
+	float w;
+	float h;
 	int element_count;
-	Point *points;
+	Object *objects;
 	Partition *subpartitions;
 
-	Partition() : x(0), y(0), w(0), h(0), element_count(0) {
-		points = new Point[upper_bound];
-		subpartitions = nullptr;
-	}
-
-	Partition(int x, int y, int w, int h) : x(x), y(y), w(w), h(h), element_count(0) {
-		points = new Point[upper_bound];
+	Partition() {}
+	Partition(float x, float y, float w, float h) : x(x), y(y), w(w), h(h), element_count(0) {
+		objects = new Object[upper_bound];
 		subpartitions = nullptr;
 	}
 
 	void render(SDL_Renderer *renderer) {
-		if (points) {
+		if (objects) {
 			SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
-			SDL_Rect rect = { x + 2, y + 2, w - 2, h - 2 };
+			SDL_Rect rect = { (int) x + 2, (int) y + 2, (int) w - 2, (int) h - 2 };
 			SDL_RenderDrawRect(renderer, &rect);
 			for (int i = 0; i < upper_bound; i++) {
-				points[i].render(renderer);
+				objects[i].render(renderer);
 			}
 		} else {
 			for (int i = 0; i < 4; i++) {
@@ -48,57 +60,73 @@ struct Partition {
 		}
 	}
 
-	void add_to_subpartition(Point p) {
-		if (p.x < w / 2) {
-			if (p.y < h / 2) {
-				subpartitions[0].add(p);
+	void add_to_subpartition(Object o) {
+		if (o.pos.x < x + w / 2) {
+			if (o.pos.y < y + h / 2) {
+				subpartitions[0].add(o);
 			} else {
-				subpartitions[1].add(p);
+				subpartitions[1].add(o);
 			}
 		} else {
-			if (p.y < h / 2) {
-				subpartitions[2].add(p);
+			if (o.pos.y < y + h / 2) {
+				subpartitions[2].add(o);
 			} else {
-				subpartitions[3].add(p);
+				subpartitions[3].add(o);
 			}
 		}
 	}
 
-	void add(Point p) {
+	void add(Object o) {
 		if (element_count < upper_bound) {
-			points[element_count] = p;
+			objects[element_count] = o;
 		} else {
 			if (!subpartitions) {
 				subdivide();
 			}
-			add_to_subpartition(p);
+			add_to_subpartition(o);
 		}
 		element_count++;
 	}
 
 	void subdivide() {
 		subpartitions = new Partition[4];
-		subpartitions[0] = Partition(this->x,               this->y,               this->w / 2, this->h / 2);
-		subpartitions[1] = Partition(this->x,               this->y + this->h / 2, this->w / 2, this->h / 2);
-		subpartitions[2] = Partition(this->x + this->w / 2, this->y + this->h / 2, this->w / 2, this->h / 2);
-		subpartitions[3] = Partition(this->x + this->w / 2, this->y,               this->w / 2, this->h / 2);
+		float half_w = w / 2;
+		float half_h = h / 2;
+		subpartitions[0] = Partition(x,          y,           half_w, half_h);
+		subpartitions[1] = Partition(x,          y + half_h,  half_w, half_h);
+		subpartitions[2] = Partition(x + half_w, y,           half_w, half_h);
+		subpartitions[3] = Partition(x + half_w, y + half_h,  half_w, half_h);
 		for (int i = 0; i < upper_bound; i++) {
-			add_to_subpartition(points[i]);
+			add_to_subpartition(objects[i]);
 		}
-		delete[] points;
-		points = nullptr;
+		delete[] objects;
+		objects = nullptr;
 	}
 };
 
-int main() {
+float random_normalized_float() {
+	return (float) rand() / (float) RAND_MAX;
+}
+
+int main(int argc, char **argv) {
 	SDL_Init(SDL_INIT_VIDEO);
-	int window_w = 1280;
-	int window_h = 720;
 	SDL_Window *window = SDL_CreateWindow("qtree", 0, 0, window_w, window_h, SDL_WINDOW_SHOWN);
 	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	srand((unsigned int)time(0));
 
 	Partition *part = new Partition(0, 0, window_w, window_h);
-	Point pt = Point();
+	int particle_count = 11;
+	if (argc > 1) {
+		particle_count = atoi(argv[1]);
+	}
+	Object *objs = new Object[particle_count];
+	for (int i = 0; i < particle_count; i++) {
+		Point pos = Point(random_normalized_float() * window_w, random_normalized_float() * window_h);
+		Point vel = Point(random_normalized_float() - 0.5, random_normalized_float() - 0.5);
+		objs[i] = Object(pos, vel);
+		part->add(objs[i]);
+		std::cout << i << ": " << objs[i].pos.x << " " << objs[i].pos.y << std::endl;
+	}
 
 	int quit = 0;
 	while (!quit) {
@@ -106,9 +134,6 @@ int main() {
 		while (SDL_PollEvent(&e)) {
 			if (e.type == SDL_QUIT) {
 				quit = 1;
-			}
-			if (SDL_GetMouseState(&pt.x, &pt.y) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
-				part->add(pt);
 			}
 		}
 		SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
