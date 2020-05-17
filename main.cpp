@@ -1,5 +1,7 @@
 #include <cstdlib>
 #include <ctime>
+#include <random>
+#include <functional>
 #include <SDL2/SDL.h>
 
 #define upper_bound 10
@@ -138,7 +140,7 @@ struct Partition {
 
 	void render(SDL_Renderer *renderer) {
 		if (objects) {
-			SDL_SetRenderDrawColor(renderer, 100, 0, 0, 255);
+			SDL_SetRenderDrawColor(renderer, 200, 0, 0, 255);
 			SDL_Rect rect = { (int) x + 2, (int) y + 2, (int) w - 2, (int) h - 2 };
 			SDL_RenderDrawRect(renderer, &rect);
 			for (int i = 0; i < element_count; i++) {
@@ -220,26 +222,27 @@ struct Partition {
 	}
 };
 
-float random_normalized_float() {
-	return (float) rand() / (float) RAND_MAX;
-}
-
 int main(int argc, char **argv) {
 	SDL_Init(SDL_INIT_VIDEO);
 	SDL_Window *window = SDL_CreateWindow("qtree", 0, 0, window_w, window_h, SDL_WINDOW_SHOWN);
 	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-	//srand((unsigned int)time(0));
-	srand(100);
+	std::default_random_engine generator;
+	std::normal_distribution<float> pos_dist(0.5, 0.05);
+	std::normal_distribution<float> vel_dist(0.0, 0.3);
+	auto rand_pos = std::bind(pos_dist, generator);
+	auto rand_vel = std::bind(vel_dist, generator);
 
 	Partition *part = new Partition(0, 0, window_w, window_h);
-	int particle_count = 10;
+	int particle_count = 1000;
 	if (argc > 1) {
 		particle_count = atoi(argv[1]);
 	}
 	for (int i = 0; i < particle_count; i++) {
-		Point pos = Point(random_normalized_float() * window_w, random_normalized_float() * window_h);
-		Point vel = Point((random_normalized_float() - 0.5) * 5, (random_normalized_float() - 0.5) * 5);
-		part->add(Object(pos, vel));
+		Point pos = Point(rand_pos() * window_w, rand_pos() * window_h);
+		Point vel = Point(rand_vel(),    rand_vel());
+		if (pos.x > 0 && pos.x < window_w && pos.y > 0 && pos.y < window_h) {
+			part->add(Object(pos, vel));
+		}
 	}
 
 	int quit = 0;
@@ -255,7 +258,7 @@ int main(int argc, char **argv) {
 		SDL_RenderClear(renderer);
 		part->render(renderer);
 		SDL_RenderPresent(renderer);
-		SDL_Delay(30);
+		SDL_Delay(16);
 	}
 	part->free();
 	delete part;
